@@ -18,6 +18,18 @@ export function MemoryCard({ memory, canEdit, babyMode, onEdit, onDelete }: Prop
   return (
     <article className="soft-card overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5">
       <div className={`h-1.5 w-full ${style.dot}`} />
+
+      {memory.type === "image" && memory.mediaUrl && (
+        <div className="px-5 pt-5">
+          <img
+            src={memory.mediaUrl}
+            alt={memory.content || "Memory image"}
+            loading="lazy"
+            className="w-full rounded-2xl object-cover"
+          />
+        </div>
+      )}
+
       <div className="p-5">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -33,13 +45,24 @@ export function MemoryCard({ memory, canEdit, babyMode, onEdit, onDelete }: Prop
           <span className="text-xs text-muted-foreground">{formatDate(memory.createdAt)}</span>
         </header>
 
-        <p
-          className={`mt-3 whitespace-pre-wrap leading-relaxed ${
-            babyMode ? "font-serif text-[17px] text-foreground/90" : "text-foreground/90"
-          }`}
-        >
-          {memory.content}
-        </p>
+        {memory.type === "audio" && memory.mediaUrl && (
+          <audio
+            controls
+            preload="metadata"
+            src={memory.mediaUrl}
+            className="mt-3 w-full"
+          />
+        )}
+
+        {memory.content && (
+          <p
+            className={`mt-3 whitespace-pre-wrap leading-relaxed ${
+              babyMode ? "font-serif text-[17px] text-foreground/90" : "text-foreground/90"
+            }`}
+          >
+            {memory.content}
+          </p>
+        )}
 
         <footer className="mt-4 flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">

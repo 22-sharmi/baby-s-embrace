@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, ImageIcon, Loader2, Mic, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,13 +15,19 @@ import {
 } from "@/components/ui/select";
 import { useRole } from "@/context/RoleContext";
 import { createMemory, subscribeMemories, updateMemory } from "@/lib/memories";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import {
   EMOTIONS,
   EMOTION_LABEL,
   EMOTION_STYLE,
   type Contributor,
   type Emotion,
+  type MemoryType,
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const MAX_IMAGE_MB = 10;
+const MAX_AUDIO_MB = 20;
 
 export default function MemoryForm() {
   const { role } = useRole();
@@ -32,16 +38,23 @@ export default function MemoryForm() {
   const [content, setContent] = useState("");
   const [emotion, setEmotion] = useState<Emotion>("happy");
   const [isForBaby, setIsForBaby] = useState(true);
+  const [type, setType] = useState<MemoryType>("text");
+  const [mediaUrl, setMediaUrl] = useState<string | undefined>(undefined);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   const [notFound, setNotFound] = useState(false);
+
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isEdit) return;
     const unsub = subscribeMemories((list) => {
       const m = list.find((x) => x.id === id);
       if (m) {
-        // Permission: only the author can edit their memory
         if (m.author !== role) {
           setNotFound(true);
           return;
@@ -49,11 +62,20 @@ export default function MemoryForm() {
         setContent(m.content);
         setEmotion(m.emotion);
         setIsForBaby(m.isForBaby);
+        setType(m.type);
+        setMediaUrl(m.mediaUrl);
         setLoading(false);
       }
     });
     return () => unsub();
   }, [id, isEdit, role]);
+
+  // Cleanup local object URLs
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   if (!role || role === "baby") {
     navigate("/timeline", { replace: true });
@@ -65,33 +87,111 @@ export default function MemoryForm() {
     return null;
   }
 
+  const switchType = (next: MemoryType) => {
+    if (next === type) return;
+    setType(next);
+    setPendingFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(undefined);
+    // Keep existing remote mediaUrl in edit mode if matches; otherwise clear
+    setMediaUrl(undefined);
+  };
+
+  const onPickFile = (kind: "image" | "audio", file: File | null) => {
+    if (!file) return;
+    const maxMb = kind === "image" ? MAX_IMAGE_MB : MAX_AUDIO_MB;
+    if (file.size > maxMb * 1024 * 1024) {
+      toast.error(`File too large. Max ${maxMb}MB.`);
+      return;
+    }
+    setPendingFile(file);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(file));
+    setMediaUrl(undefined);
+  };
+
+  const clearMedia = () => {
+    setPendingFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(undefined);
+    setMediaUrl(undefined);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+    if (audioInputRef.current) audioInputRef.current.value = "";
+  };
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!content.trim()) {
+
+    if (type === "text" && !content.trim()) {
       toast.error("Please write something first");
       return;
     }
+    if (type !== "text" && !pendingFile && !mediaUrl) {
+      toast.error(`Please choose ${type === "image" ? "an image" : "an audio file"}`);
+      return;
+    }
+
     setSaving(true);
     try {
+      let finalMediaUrl = mediaUrl;
+      if (pendingFile && type !== "text") {
+        setUploading(true);
+        finalMediaUrl = await uploadToCloudinary(pendingFile, type);
+        setUploading(false);
+      }
+
+      const payload = {
+        content: content.trim(),
+        author: role as Contributor,
+        emotion,
+        type,
+        mediaUrl: finalMediaUrl,
+        isForBaby,
+      };
+
       if (isEdit && id) {
-        await updateMemory(id, { content: content.trim(), emotion, isForBaby });
+        await updateMemory(id, payload);
         toast.success("Memory updated");
       } else {
-        await createMemory({
-          content: content.trim(),
-          author: role as Contributor,
-          emotion,
-          isForBaby,
-        });
+        await createMemory(payload);
         toast.success("Memory saved ❤️");
       }
       navigate("/timeline");
     } catch (err) {
-      toast.error("Couldn't save. Please try again.");
+      const msg = err instanceof Error ? err.message : "Couldn't save. Please try again.";
+      toast.error(msg);
     } finally {
+      setUploading(false);
       setSaving(false);
     }
   };
+
+  const TypeButton = ({
+    value,
+    icon: Icon,
+    label,
+  }: {
+    value: MemoryType;
+    icon: typeof FileText;
+    label: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => switchType(value)}
+      className={cn(
+        "flex flex-1 flex-col items-center gap-1.5 rounded-xl border p-3 text-xs font-medium transition-colors",
+        type === value
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-border bg-background text-muted-foreground hover:bg-accent"
+      )}
+    >
+      <Icon className="h-5 w-5" />
+      {label}
+    </button>
+  );
+
+  const showImagePreview = type === "image" && (previewUrl || mediaUrl);
+  const showAudioPreview = type === "audio" && (previewUrl || mediaUrl);
 
   return (
     <div className="app-shell">
@@ -109,15 +209,103 @@ export default function MemoryForm() {
       ) : (
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="soft-card p-4">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+              Memory type
+            </Label>
+            <div className="mt-2 flex gap-2">
+              <TypeButton value="text" icon={FileText} label="Text" />
+              <TypeButton value="image" icon={ImageIcon} label="Image" />
+              <TypeButton value="audio" icon={Mic} label="Audio" />
+            </div>
+          </div>
+
+          {type === "image" && (
+            <div className="soft-card p-4">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Image
+              </Label>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => onPickFile("image", e.target.files?.[0] ?? null)}
+              />
+              {showImagePreview ? (
+                <div className="relative mt-3">
+                  <img
+                    src={previewUrl ?? mediaUrl}
+                    alt="Preview"
+                    className="w-full rounded-2xl object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={clearMedia}
+                    aria-label="Remove image"
+                    className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 shadow"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="mt-3 flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-10 text-sm text-muted-foreground hover:bg-accent"
+                >
+                  <Upload className="h-5 w-5" />
+                  Choose an image
+                </button>
+              )}
+            </div>
+          )}
+
+          {type === "audio" && (
+            <div className="soft-card p-4">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Audio
+              </Label>
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(e) => onPickFile("audio", e.target.files?.[0] ?? null)}
+              />
+              {showAudioPreview ? (
+                <div className="mt-3 space-y-2">
+                  <audio
+                    controls
+                    src={previewUrl ?? mediaUrl}
+                    className="w-full"
+                  />
+                  <Button type="button" variant="ghost" size="sm" onClick={clearMedia}>
+                    <X className="mr-1 h-4 w-4" /> Remove
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => audioInputRef.current?.click()}
+                  className="mt-3 flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-10 text-sm text-muted-foreground hover:bg-accent"
+                >
+                  <Mic className="h-5 w-5" />
+                  Choose an audio file
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="soft-card p-4">
             <Label htmlFor="content" className="text-xs uppercase tracking-wider text-muted-foreground">
-              Your words
+              {type === "text" ? "Your words" : "Caption (optional)"}
             </Label>
             <Textarea
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Dear little one…"
-              rows={8}
+              placeholder={type === "text" ? "Dear little one…" : "Add a few words…"}
+              rows={type === "text" ? 8 : 3}
               className="mt-2 resize-none border-none bg-transparent p-0 text-base shadow-none focus-visible:ring-0"
             />
           </div>
@@ -155,10 +343,20 @@ export default function MemoryForm() {
 
           <Button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploading}
             className="h-12 w-full rounded-full bg-primary text-base font-semibold text-primary-foreground hover:bg-primary/90"
           >
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : isEdit ? "Save changes" : "Save memory"}
+            {uploading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" /> Uploading…
+              </span>
+            ) : saving ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isEdit ? (
+              "Save changes"
+            ) : (
+              "Save memory"
+            )}
           </Button>
         </form>
       )}

@@ -1,12 +1,15 @@
 export type Role = "mother" | "father" | "aunt" | "baby";
 export type Contributor = Exclude<Role, "baby">;
 export type Emotion = "happy" | "excited" | "tired" | "emotional";
+export type MemoryType = "text" | "image" | "audio";
 
 export interface Memory {
   id: string;
   content: string;
   author: Contributor;
   emotion: Emotion;
+  type: MemoryType;
+  mediaUrl?: string;
   isForBaby: boolean;
   createdAt: Date;
 }
@@ -15,6 +18,8 @@ export interface MemoryInput {
   content: string;
   author: Contributor;
   emotion: Emotion;
+  type: MemoryType;
+  mediaUrl?: string;
   isForBaby: boolean;
 }
 

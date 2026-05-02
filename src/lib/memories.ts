@@ -28,11 +28,14 @@ export function subscribeMemories(cb: (m: Memory[]) => void, onError?: (e: Error
     (snap) => {
       const items: Memory[] = snap.docs.map((d) => {
         const data = d.data() as Record<string, unknown>;
+        const mediaUrl = typeof data.mediaUrl === "string" ? data.mediaUrl : undefined;
         return {
           id: d.id,
           content: String(data.content ?? ""),
           author: (data.author as Memory["author"]) ?? "mother",
           emotion: (data.emotion as Memory["emotion"]) ?? "happy",
+          type: (data.type as Memory["type"]) ?? "text",
+          mediaUrl,
           isForBaby: Boolean(data.isForBaby),
           createdAt: toDate(data.createdAt),
         };
