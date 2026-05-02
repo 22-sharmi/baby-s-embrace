@@ -21,7 +21,6 @@ import {
   EMOTION_STYLE,
   type Contributor,
   type Emotion,
-  type MemoryType,
 } from "@/lib/types";
 
 export default function MemoryForm() {
@@ -31,28 +30,37 @@ export default function MemoryForm() {
   const isEdit = Boolean(id);
 
   const [content, setContent] = useState("");
-  const [type, setType] = useState<MemoryType>("letter");
   const [emotion, setEmotion] = useState<Emotion>("happy");
   const [isForBaby, setIsForBaby] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!isEdit) return;
     const unsub = subscribeMemories((list) => {
       const m = list.find((x) => x.id === id);
       if (m) {
+        // Permission: only the author can edit their memory
+        if (m.author !== role) {
+          setNotFound(true);
+          return;
+        }
         setContent(m.content);
-        setType(m.type);
         setEmotion(m.emotion);
         setIsForBaby(m.isForBaby);
         setLoading(false);
       }
     });
     return () => unsub();
-  }, [id, isEdit]);
+  }, [id, isEdit, role]);
 
   if (!role || role === "baby") {
+    navigate("/timeline", { replace: true });
+    return null;
+  }
+
+  if (notFound) {
     navigate("/timeline", { replace: true });
     return null;
   }
@@ -66,13 +74,12 @@ export default function MemoryForm() {
     setSaving(true);
     try {
       if (isEdit && id) {
-        await updateMemory(id, { content: content.trim(), type, emotion, isForBaby });
+        await updateMemory(id, { content: content.trim(), emotion, isForBaby });
         toast.success("Memory updated");
       } else {
         await createMemory({
           content: content.trim(),
           author: role as Contributor,
-          type,
           emotion,
           isForBaby,
         });
@@ -115,40 +122,25 @@ export default function MemoryForm() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="soft-card p-4">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Type</Label>
-              <Select value={type} onValueChange={(v) => setType(v as MemoryType)}>
-                <SelectTrigger className="mt-2 border-none bg-transparent px-0 shadow-none focus:ring-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="letter">Letter</SelectItem>
-                  <SelectItem value="feeling">Feeling</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="soft-card p-4">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                Emotion
-              </Label>
-              <Select value={emotion} onValueChange={(v) => setEmotion(v as Emotion)}>
-                <SelectTrigger className="mt-2 border-none bg-transparent px-0 shadow-none focus:ring-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EMOTIONS.map((e) => (
-                    <SelectItem key={e} value={e}>
-                      <span className="inline-flex items-center gap-2">
-                        <span className={`h-2.5 w-2.5 rounded-full ${EMOTION_STYLE[e].dot}`} />
-                        {EMOTION_LABEL[e]}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="soft-card p-4">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+              Emotion
+            </Label>
+            <Select value={emotion} onValueChange={(v) => setEmotion(v as Emotion)}>
+              <SelectTrigger className="mt-2 border-none bg-transparent px-0 shadow-none focus:ring-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EMOTIONS.map((e) => (
+                  <SelectItem key={e} value={e}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${EMOTION_STYLE[e].dot}`} />
+                      {EMOTION_LABEL[e]}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="soft-card flex items-center justify-between p-4">

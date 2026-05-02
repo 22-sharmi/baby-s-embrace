@@ -16,9 +16,7 @@ const formatDate = (d: Date) =>
 export function MemoryCard({ memory, canEdit, babyMode, onEdit, onDelete }: Props) {
   const style = EMOTION_STYLE[memory.emotion];
   return (
-    <article
-      className={`soft-card overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5`}
-    >
+    <article className="soft-card overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5">
       <div className={`h-1.5 w-full ${style.dot}`} />
       <div className="p-5">
         <header className="flex items-center justify-between gap-3">
@@ -51,11 +49,9 @@ export function MemoryCard({ memory, canEdit, babyMode, onEdit, onDelete }: Prop
               </>
             ) : (
               <>
-                <Users className="h-3.5 w-3.5" /> Family
+                <Users className="h-3.5 w-3.5" /> Private
               </>
             )}
-            <span className="mx-1">·</span>
-            <span className="capitalize">{memory.type}</span>
           </span>
 
           {canEdit && (

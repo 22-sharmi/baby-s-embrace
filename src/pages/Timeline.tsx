@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useRole } from "@/context/RoleContext";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { removeMemory, subscribeMemories } from "@/lib/memories";
-import { ROLE_LABEL, type Memory, type MemoryType } from "@/lib/types";
+import { ROLE_LABEL, type Memory } from "@/lib/types";
 import { MemoryCard } from "@/components/MemoryCard";
 import { toast } from "sonner";
 import {
@@ -19,8 +19,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type Tab = "all" | "letter" | "feeling";
-
 export default function Timeline() {
   const { role, setRole } = useRole();
   const navigate = useNavigate();
@@ -28,7 +26,6 @@ export default function Timeline() {
 
   const [memories, setMemories] = useState<Memory[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("all");
   const [pendingDelete, setPendingDelete] = useState<Memory | null>(null);
 
   useEffect(() => {
@@ -52,11 +49,10 @@ export default function Timeline() {
 
   const visible = useMemo(() => {
     if (!memories) return [];
-    let list = memories;
-    if (isBaby) list = list.filter((m) => m.isForBaby);
-    if (tab !== "all") list = list.filter((m) => m.type === (tab as MemoryType));
-    return list;
-  }, [memories, isBaby, tab]);
+    if (isBaby) return memories.filter((m) => m.isForBaby);
+    // Contributors see only their own memories — a private diary.
+    return memories.filter((m) => m.author === role);
+  }, [memories, isBaby, role]);
 
   const onSwitchRole = () => {
     setRole(null);
@@ -65,6 +61,12 @@ export default function Timeline() {
 
   const onDelete = async () => {
     if (!pendingDelete) return;
+    // Permission: only the author can delete their memory
+    if (pendingDelete.author !== role) {
+      toast.error("You can only delete your own memories");
+      setPendingDelete(null);
+      return;
+    }
     try {
       await removeMemory(pendingDelete.id);
       toast.success("Memory removed");
@@ -88,31 +90,13 @@ export default function Timeline() {
           {isBaby ? (
             <h1 className="mt-1 font-serif text-2xl italic">A story made for you ❤️</h1>
           ) : (
-            <h1 className="mt-1 font-serif text-2xl">Little Letters</h1>
+            <h1 className="mt-1 font-serif text-2xl">My little letters</h1>
           )}
         </div>
         <Button variant="ghost" size="icon" onClick={onSwitchRole} aria-label="Switch role">
           <LogOut className="h-5 w-5" />
         </Button>
       </header>
-
-      {!isBaby && (
-        <div className="mb-5 flex gap-2 rounded-full bg-muted p-1">
-          {(["all", "letter", "feeling"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-semibold capitalize transition-colors ${
-                tab === t
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t === "all" ? "All" : t === "letter" ? "Letters" : "Feelings"}
-            </button>
-          ))}
-        </div>
-      )}
 
       {error && (
         <div className="soft-card mb-4 border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -133,7 +117,7 @@ export default function Timeline() {
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 pb-24">
           {visible.map((m) => (
             <MemoryCard
               key={m.id}
