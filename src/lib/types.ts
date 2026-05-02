@@ -1,13 +1,11 @@
 export type Role = "mother" | "father" | "aunt" | "baby";
 export type Contributor = Exclude<Role, "baby">;
-export type MemoryType = "letter" | "feeling";
 export type Emotion = "happy" | "excited" | "tired" | "emotional";
 
 export interface Memory {
   id: string;
   content: string;
   author: Contributor;
-  type: MemoryType;
   emotion: Emotion;
   isForBaby: boolean;
   createdAt: Date;
@@ -16,7 +14,6 @@ export interface Memory {
 export interface MemoryInput {
   content: string;
   author: Contributor;
-  type: MemoryType;
   emotion: Emotion;
   isForBaby: boolean;
 }
