@@ -9,12 +9,12 @@ import {
 // Firebase Console → Project Settings → Your apps → Web app → Config.
 // These are publishable values and safe to ship in client code.
 export const firebaseConfig = {
-  apiKey: "REPLACE_API_KEY",
-  authDomain: "REPLACE.firebaseapp.com",
-  projectId: "REPLACE_PROJECT_ID",
-  storageBucket: "REPLACE.appspot.com",
-  messagingSenderId: "REPLACE_SENDER_ID",
-  appId: "REPLACE_APP_ID",
+  apiKey: "AIzaSyABPzlHOWvhm-tgxi8yQtxwoCFB5QuAk8c",
+  authDomain: "dear-little-one-app.firebaseapp.com",
+  projectId: "dear-little-one-app",
+  storageBucket: "dear-little-one-app.firebasestorage.app",
+  messagingSenderId: "569903138172",
+  appId: "1:569903138172:web:24b8de655676a1742110f9"
 };
 
 export const isFirebaseConfigured = !firebaseConfig.apiKey.startsWith("REPLACE");
